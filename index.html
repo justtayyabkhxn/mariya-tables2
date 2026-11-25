@@ -70,7 +70,62 @@
     position: fixed; bottom: -80px; pointer-events: none; z-index: 0;
     animation: rise linear infinite;
   }
-  .float > * {
+  /* comic speech bubbles with Astro's lines */
+  .say {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    width: max-content;
+    max-width: min(210px, 60vw);
+    background: #fff;
+    color: #2a1f6e;
+    border: 3px solid var(--cap);
+    border-radius: 18px;
+    padding: 7px 12px;
+    font-size: clamp(.78rem, 1.9vh, .95rem);
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    box-shadow: 0 4px 0 var(--cap-deep), 0 0 18px rgba(143, 243, 238, .5);
+    transform: translateX(-50%) scale(0);
+    transform-origin: 50% 120%;
+    animation: sayIn .45s cubic-bezier(.3,1.7,.5,1) forwards;
+    z-index: 5;
+  }
+  .say.right { left: auto; right: 50%; transform: scale(0); transform-origin: 90% 120%; animation-name: sayInR; }
+  .say.left  { left: 50%; transform: scale(0); transform-origin: 10% 120%; animation-name: sayInL; }
+  .say::after {
+    content: '';
+    position: absolute; top: 100%; left: 50%;
+    border: 10px solid transparent;
+    border-top-color: var(--cap);
+    transform: translateX(-50%);
+  }
+  .say.right::after { left: auto; right: 6px; transform: none; }
+  .say.left::after  { left: 6px; transform: none; }
+  .say.bye { animation: sayOut .35s ease-in forwards; }
+  .say.right.bye, .say.left.bye { animation-name: sayOutS; }
+  @keyframes sayIn   { to { transform: translateX(-50%) scale(1); } }
+  @keyframes sayInR  { to { transform: scale(1); } }
+  @keyframes sayInL  { to { transform: scale(1); } }
+  @keyframes sayOut  { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(0); opacity: 0; } }
+  @keyframes sayOutS { from { transform: scale(1); } to { transform: scale(0); opacity: 0; } }
+
+  /* freestanding bubble (when no mini Astro is in a good spot) */
+  .solo {
+    position: fixed; z-index: 4; pointer-events: none;
+    display: flex; align-items: flex-end; gap: 4px;
+  }
+  .solo img {
+    width: 40px; height: 40px; border-radius: 50%;
+    filter: drop-shadow(0 0 8px rgba(143, 243, 238, .6));
+    animation: snooze 2.4s ease-in-out infinite;
+  }
+  .solo .say { position: relative; bottom: 26px; left: 0; transform: scale(0); transform-origin: 0 100%; animation-name: sayInL; }
+  .solo .say::after { left: 6px; transform: none; }
+  .solo .say.bye { animation-name: sayOutS; }
+
+  .float > .bob {
     display: block;
     animation: sway ease-in-out infinite alternate;
     filter: drop-shadow(0 0 8px rgba(143, 243, 238, .45));
@@ -325,6 +380,34 @@
 <script>
   const ASTRO = document.getElementById('astro').src;
   const sky = ['⭐','🌙','✨','💫','🌟','💤','☁️','🪐','🌠','💙'];
+  // Astro's lines from Dandy's World (as listed on the fan wiki)
+  const astroSays = [
+    'Sweet dreams...', 'Good night.', 'Nap time...', "Let's take a nap.",
+    "Let's get some rest.", 'Am I dreaming?', 'My nap will have to wait..',
+    "I wish it wasn't so noisy...",
+    "I sleep almost every day, it's not that difficult to sleep...",
+    'Lumens, the measurement of light!',
+    'No, I like my blanket.... I feel comfortable in it.',
+    'Wait, you can see in the dark?',
+    "You've been having some interesting dreams Cosmo.",
+    'Finn do you ever dream of anything other than fish...?',
+    'So you got the dream I made for you...?',
+    "So you don't know where my spare hat went?",
+    'You know... sometimes I have stage fright as well.',
+    'Well, know that I am always here if you ever need anything...',
+    "Just keep your head up, and don't panic. You're doing well.",
+    'Blot you seem to be trailing puddles behind you.',
+    'Bassie... You know we\'re here to support you.',
+    'Uh... what?',
+    '...Did someone leave this playing here on purpose?'
+  ];
+  let lastLine = -1;
+  function randomLine() {
+    let i;
+    do { i = Math.floor(Math.random() * astroSays.length); } while (i === lastLine);
+    lastLine = i;
+    return astroSays[i];
+  }
   const lines = [
     'Nap Time! ✨', 'Well rested & ready! 💙', 'Star pillows collected! ⭐',
     'Shh... counting stars 🌙', 'Stamina restored! 💫', 'Sweet dreams of numbers 🌟',
@@ -346,15 +429,22 @@
   }
 
   document.getElementById('astro').addEventListener('click', e => {
-    bubble.textContent = lines[Math.floor(Math.random() * lines.length)];
+    bubble.textContent = '“' + randomLine() + '”';
     burst(e.clientX, e.clientY);
   });
+
+  // big Astro murmurs a new line every so often
+  setInterval(() => {
+    if (Date.now() - lastPick > 6000) bubble.textContent = '“' + randomLine() + '”';
+  }, 7000);
+  let lastPick = 0;
 
   function showTable(n, btn) {
     current = n; currentBtn = btn;
     document.querySelectorAll('.btn').forEach(x => x.classList.remove('active'));
     btn.classList.add('active');
     bubble.textContent = `Table of ${n}! ${lines[n - 1]}`;
+    lastPick = Date.now();
     let html = `<h2>🌙 Table of ${n} ⭐</h2><ul class="rows">`;
     for (let i = 1; i <= 10; i++) {
       html += `<li style="animation-delay:${i * 0.06}s">
@@ -419,27 +509,87 @@
   }
 
   // floating moons, stars, zzz and mini sleepy Astros
+  const miniAstros = [];
   for (let i = 0; i < 24; i++) {
     const f = document.createElement('div');
     f.className = 'float';
-    f.style.left = Math.random() * 96 + 'vw';
-    f.style.animationDuration = 14 + Math.random() * 14 + 's';
-    f.style.animationDelay = -Math.random() * 28 + 's';
+    const x = Math.random() * 96;
+    f.style.left = x + 'vw';
+    f.style.animationDuration = 18 + Math.random() * 14 + 's';
+    f.style.animationDelay = -Math.random() * 30 + 's';
     let el;
-    if (i % 4 === 0) {
+    if (i % 3 === 0) {
       el = document.createElement('img');
       el.src = ASTRO;
       el.alt = '';
-      f.style.width = 28 + Math.random() * 22 + 'px';
+      f.style.width = 30 + Math.random() * 22 + 'px';
+      f.dataset.side = x > 66 ? 'right' : x < 33 ? 'left' : '';
+      miniAstros.push(f);
     } else {
       el = document.createElement('span');
       el.textContent = sky[i % sky.length];
       el.style.fontSize = 16 + Math.random() * 20 + 'px';
     }
+    el.classList.add('bob');
     el.style.animationDuration = 2 + Math.random() * 2 + 's';
     f.appendChild(el);
     document.body.appendChild(f);
   }
+
+  // random dialogue bubbles popping up around the screen
+  function makeSay(text, cls) {
+    const s = document.createElement('div');
+    s.className = 'say' + (cls ? ' ' + cls : '');
+    s.textContent = text;
+    return s;
+  }
+  function dismiss(s, host) {
+    setTimeout(() => {
+      s.classList.add('bye');
+      setTimeout(() => (host || s).remove(), 380);
+    }, 3800 + Math.random() * 1200);
+  }
+  function popDialogue() {
+    if (document.querySelectorAll('.say:not(#bubble)').length >= 3) return;
+    const vh = window.innerHeight;
+    // prefer a mini Astro that is comfortably on screen and not already talking
+    const c = card.getBoundingClientRect();
+    const ready = miniAstros.filter(f => {
+      const r = f.getBoundingClientRect();
+      const mid = r.left + r.width / 2;
+      const bubbleL = f.dataset.side === 'right' ? mid - 215 : f.dataset.side === 'left' ? mid : mid - 108;
+      const clearOfCard = bubbleL + 215 < c.left || bubbleL > c.right;
+      return clearOfCard && r.top > vh * 0.22 && r.top < vh * 0.85 && !f.querySelector('.say');
+    });
+    if (ready.length) {
+      const f = ready[Math.floor(Math.random() * ready.length)];
+      const s = makeSay(randomLine(), f.dataset.side);
+      f.appendChild(s);
+      dismiss(s);
+    } else {
+      const solo = document.createElement('div');
+      solo.className = 'solo';
+      const W = window.innerWidth;
+      const leftSpace = c.left - 16, rightSpace = W - c.right - 16;
+      let x;
+      if (leftSpace >= 250 || rightSpace >= 250) {
+        const useLeft = leftSpace >= 250 && (rightSpace < 250 || Math.random() < .5);
+        x = useLeft ? 8 + Math.random() * (leftSpace - 250) : c.right + 8 + Math.random() * (rightSpace - 250);
+      } else {
+        x = Math.random() * Math.max(10, W - 260);
+      }
+      solo.style.left = x + 'px';
+      solo.style.top = vh * (0.25 + Math.random() * 0.6) + 'px';
+      const img = document.createElement('img');
+      img.src = ASTRO; img.alt = '';
+      const s = makeSay(randomLine());
+      solo.append(img, s);
+      document.body.appendChild(solo);
+      dismiss(s, solo);
+    }
+  }
+  setTimeout(popDialogue, 1200);
+  setInterval(popDialogue, 2600);
 </script>
 </body>
 </html>
